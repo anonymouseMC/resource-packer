@@ -24,7 +24,6 @@ var BLOOM_INFO = {
 var LIVE = false;
 
 function run(cmd, cb){
-	//console.log(cmd);
 	if(cb === undefined){cb=()=>{}}
 	cp.exec(cmd, (error, stdout, stderr) => {
 		if (error && error.code != 1) {
@@ -36,6 +35,7 @@ function run(cmd, cb){
 		}
 		if (stdout) {
 			if(stderr){
+				console.log(cmd);
 				console.log("\x1b[38;5;8m"+stdout+"\x1b[m");
 			}
 			return cb(stdout);
@@ -106,24 +106,37 @@ function build(sourcedir, outputdir) {
 				console.log("folder structure copy:", folder);
 				fs.mkdirSync(folder);
 			}
-		})
+		});
+
+		//crawl dir of files
+		walk(sourcedir, false, (err, res)=>{
+			var res_srcimgs = res.filter( a => !(a.endsWith('.meta') || a.endsWith('.s.png')) );
+			//console.log(res_srcimgs);
+
+			res_srcimgs.forEach( img => {
+				var filename = img.split('/').at(-1);
+				console.log('> building', filename);
+				build_file(img, filename, res, path.join(__dirname, outputdir), path.join(__dirname, sourcedir) );
+			} );
+		});
+
 	})
 
-	//crawl dir of files
-	walk(sourcedir, false, (err, res)=>{
-		var res_srcimgs = res.filter( a => !(a.endsWith('.meta') || a.endsWith('.s.png')) );
-		//console.log(res_srcimgs);
-
-		res_srcimgs.forEach( img => {
-			var filename = img.split('/').at(-1);
-			console.log('> building', filename);
-			build_file(img, filename, res, path.join(__dirname, outputdir), path.join(__dirname, sourcedir) );
-		} );
-
-	});
 }
 
 function build_file(filepath, filename, filelist, destdir, curdir) {
+	//json models and shite should just be copied and left alone.
+	if(filepath.endsWith('.json')){
+		var jid = filepath.split('.json')[0].split(curdir)[1];
+
+		console.log(`>> ${jid} > copying json`);
+		fs.copyFileSync(
+			path.join(filepath),
+			path.join(destdir, jid + ".json")
+		);
+		return;
+	}
+
 	var filepath_noext = filepath.split('.png')[0];
 
 	//console.log(filepath, filename);
@@ -132,8 +145,6 @@ function build_file(filepath, filename, filelist, destdir, curdir) {
 	//where we will write to, minus file type.
 	// this functions like an ID. IE: minecraft/textures/block/torch 
 	var texid = filepath_noext.split(curdir)[1]
-
-	//console.log( texid );
 
 	var has_texture = true; //every texture... has a texture. this is here incase i add lang copying.
 	var has_specular = filelist.includes( filepath_noext + ".s.png" );
